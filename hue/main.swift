@@ -7,6 +7,7 @@ class Configuration {
     let dict: NSMutableDictionary
 
     static let ipAddressKey = "IpAddress"
+    static let deviceTypeKey = "DeviceType"
 
     var ipAddress: String? {
         get {
@@ -14,6 +15,15 @@ class Configuration {
         }
         set {
             dict[Configuration.ipAddressKey] = newValue
+        }
+    }
+
+    var deviceType: String? {
+        get {
+            return dict[Configuration.deviceTypeKey] as? String
+        }
+        set {
+            dict[Configuration.deviceTypeKey] = newValue
         }
     }
 
@@ -99,10 +109,42 @@ class SetBridgeIpAddressCommand: Command {
     }
 }
 
+class SetDeviceTypeCommand: Command {
+    static let commandName = "set-device-type"
+
+    let argumentsDescription = "\(commandName) <device-type>"
+    let argumentsMatch: Bool
+
+    var deviceType: String?
+
+    init(_ arguments: [String]) {
+        var args = ArraySlice(arguments)
+        guard
+        let _ = args.popFirst(),
+        let commandName = args.popFirst() where commandName == SetDeviceTypeCommand.commandName,
+        let deviceType = args.popFirst() else {
+            self.argumentsMatch = false
+            return
+        }
+        self.argumentsMatch = true
+        self.deviceType = deviceType
+    }
+
+    func execute() {
+        guard argumentsMatch else {
+            return
+        }
+        let config = Configuration()
+        config.deviceType = deviceType
+        config.write()
+    }
+}
+
 let args = Process.arguments
 let commands: [Command] = [
         ConfigCommand(args),
-        SetBridgeIpAddressCommand(args)
+        SetBridgeIpAddressCommand(args),
+        SetDeviceTypeCommand(args)
 ]
 
 guard let command = commands.filter({ $0.argumentsMatch }).first else {
