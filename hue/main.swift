@@ -72,6 +72,71 @@ class Configuration {
     }
 }
 
+class Requester {
+    let config: Configuration
+
+    init(config: Configuration) {
+        self.config = config
+    }
+
+    func createApiURLWithoutUsernameForRelativeURL(relativeURL: String) throws -> NSURL {
+        guard let ipAddress = config.ipAddress else {
+            throw Error.MissingConfiguration(message: "Missing ip address")
+        }
+        return NSURL(string: "http://\(ipAddress)/api/\(relativeURL)")!
+    }
+
+    func createApiURLForRelativeURL(relativeURL: String) throws -> NSURL {
+        guard let ipAddress = config.ipAddress else {
+            throw Error.MissingConfiguration(message: "Missing ip address")
+        }
+        guard let username = config.username else {
+            throw Error.MissingConfiguration(message: "Missing username")
+        }
+        return NSURL(string: "http://\(ipAddress)/api/\(username)/\(relativeURL)")!
+    }
+
+    func doGetWithURL(url: NSURL, successHandler: (NSData) -> Void) throws -> Semaphore {
+        let semaphore = Semaphore()
+        let completionHandler = createCompletionHandlerForURL(url, semaphore: semaphore, successHandler: successHandler)
+        let task = NSURLSession.sharedSession().dataTaskWithURL(url, completionHandler: completionHandler)
+        task.resume()
+        return semaphore
+    }
+
+    func doPostWithURL(url: NSURL, body: AnyObject, successHandler: (NSData) -> Void) throws -> Semaphore {
+        let request = try createPostRequestWithURL(url, body: body)
+        let semaphore = Semaphore()
+        let completionHandler = createCompletionHandlerForURL(url, semaphore: semaphore, successHandler: successHandler)
+        let task = NSURLSession.sharedSession().dataTaskWithRequest(request, completionHandler: completionHandler)
+        task.resume()
+        return semaphore
+    }
+
+    func createCompletionHandlerForURL(url: NSURL, semaphore: Semaphore, successHandler: (NSData) -> Void) -> (NSData?, NSURLResponse?, NSError?) -> Void {
+        return {
+            (data, response, error) in
+            if let error = error {
+                print("Error calling \(url): \(error.localizedDescription)")
+            } else if let data = data {
+                successHandler(data)
+            } else {
+                print("Calling \(url) gives empty response")
+            }
+            semaphore.signal()
+        }
+    }
+
+    func createPostRequestWithURL(url: NSURL, body: AnyObject) throws -> NSURLRequest {
+        let request = NSMutableURLRequest(URL: url)
+        request.HTTPMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.HTTPBody = try NSJSONSerialization.dataWithJSONObject(body, options: [])
+        return request
+    }
+}
+
 protocol Command {
     var argumentsDescription: String { get }
     var argumentsMatch: Bool { get }
@@ -188,7 +253,7 @@ class CreateUserCommand: Command {
     let argumentsDescription = "\(commandName)"
     let argumentsMatch: Bool
 
-    var sema: Semaphore?
+    var semaphore: Semaphore?
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
@@ -209,11 +274,12 @@ class CreateUserCommand: Command {
         guard let deviceType = config.deviceType else {
             throw Error.MissingConfiguration(message: "Missing device type")
         }
-        let url = try createApiURLWithoutUsernameForRelativeURL("")
-        sema = try doPostWithURL(url, body: ["devicetype": "\(deviceType)"]) {
+        let requester = Requester(config: config)
+        let url = try requester.createApiURLWithoutUsernameForRelativeURL("")
+        semaphore = try requester.doPostWithURL(url, body: ["devicetype": "\(deviceType)"]) {
             (data) in
-            let dataAsJSON = try! NSJSONSerialization.JSONObjectWithData(data, options: []) as! NSArray
-            let object = dataAsJSON.firstObject as! NSDictionary
+            let array = try! NSJSONSerialization.JSONObjectWithData(data, options: []) as! NSArray
+            let object = array.firstObject as! NSDictionary
             if let _ = object["error"] {
                 print("Press link button on bridge and then execute this command again within 30 seconds")
             } else if let success = object["success"] as? NSDictionary {
@@ -223,42 +289,47 @@ class CreateUserCommand: Command {
         }
     }
 
-    func createApiURLWithoutUsernameForRelativeURL(relativeURL: String) throws -> NSURL {
-        guard let ipAddress = config.ipAddress else {
-            throw Error.MissingConfiguration(message: "Missing ip address")
+    func waitUntilFinished() {
+        semaphore?.wait()
+    }
+}
+
+class GetBridgeConfigCommand: Command {
+    static let commandName = "get-bridge-config"
+
+    let config: Configuration
+    let argumentsDescription = "\(commandName)"
+    let argumentsMatch: Bool
+
+    var semaphore: Semaphore?
+
+    init(config: Configuration, arguments: [String]) {
+        self.config = config
+        var args = ArraySlice(arguments)
+        guard
+        let _ = args.popFirst(),
+        let commandName = args.popFirst() where commandName == GetBridgeConfigCommand.commandName else {
+            self.argumentsMatch = false
+            return
         }
-        return NSURL(string: "http://\(ipAddress)/api/\(relativeURL)")!
+        self.argumentsMatch = args.isEmpty
     }
 
-    func doPostWithURL(url: NSURL, body: AnyObject, successHandler: (NSData) -> Void) throws -> Semaphore {
-        let request = try createPostRequestWithURL(url, body: body)
-        let sema = Semaphore()
-        let task = NSURLSession.sharedSession().dataTaskWithRequest(request) {
-            (data, response, error) in
-            if let error = error {
-                print("Error calling \(url): \(error.localizedDescription)")
-            } else if let data = data {
-                successHandler(data)
-            } else {
-                print("Calling \(url) gives empty response")
-            }
-            sema.signal()
+    func execute() throws {
+        guard argumentsMatch else {
+            return
         }
-        task.resume()
-        return sema
-    }
-
-    func createPostRequestWithURL(url: NSURL, body: AnyObject) throws -> NSURLRequest {
-        let request = NSMutableURLRequest(URL: url)
-        request.HTTPMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.HTTPBody = try NSJSONSerialization.dataWithJSONObject(body, options: [])
-        return request
+        let requester = Requester(config: config)
+        let url = try requester.createApiURLForRelativeURL("config")
+        semaphore = try requester.doGetWithURL(url) {
+            (data) in
+            let object = try! NSJSONSerialization.JSONObjectWithData(data, options: []) as! NSDictionary
+            print(object)
+        }
     }
 
     func waitUntilFinished() {
-        sema?.wait()
+        semaphore?.wait()
     }
 }
 
@@ -268,7 +339,8 @@ let commands: [Command] = [
         ConfigCommand(config: config, arguments: args),
         SetBridgeIpAddressCommand(config: config, arguments: args),
         SetDeviceTypeCommand(config: config, arguments: args),
-        CreateUserCommand(config: config, arguments: args)
+        CreateUserCommand(config: config, arguments: args),
+        GetBridgeConfigCommand(config: config, arguments: args)
 ]
 
 guard let command = commands.filter({ $0.argumentsMatch }).first else {
