@@ -113,6 +113,15 @@ class Requester {
         return semaphore
     }
 
+    func doDeleteWithURL(url: NSURL, successHandler: (NSData) -> Void = { _ in }) throws -> Semaphore {
+        let request = try createDeleteRequestWithURL(url);
+        let semaphore = Semaphore()
+        let completionHandler = createCompletionHandlerForURL(url, semaphore: semaphore, successHandler: successHandler)
+        let task = NSURLSession.sharedSession().dataTaskWithRequest(request, completionHandler: completionHandler)
+        task.resume()
+        return semaphore
+    }
+
     func createCompletionHandlerForURL(url: NSURL, semaphore: Semaphore, successHandler: (NSData) -> Void) -> (NSData?, NSURLResponse?, NSError?) -> Void {
         return {
             (data, response, error) in
@@ -133,6 +142,13 @@ class Requester {
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
         request.HTTPBody = try NSJSONSerialization.dataWithJSONObject(body, options: [])
+        return request
+    }
+
+    func createDeleteRequestWithURL(url: NSURL) throws -> NSURLRequest {
+        let request = NSMutableURLRequest(URL: url)
+        request.HTTPMethod = "DELETE"
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
         return request
     }
 }
@@ -294,6 +310,45 @@ class CreateUserCommand: Command {
     }
 }
 
+class DeleteUserCommand: Command {
+    static let commandName = "delete-user"
+
+    let config: Configuration
+    let argumentsDescription = "\(commandName) <username>"
+    let argumentsMatch: Bool
+
+    var username2: String?
+
+    var semaphore: Semaphore?
+
+    init(config: Configuration, arguments: [String]) {
+        self.config = config
+        var args = ArraySlice(arguments)
+        guard
+        let _ = args.popFirst(),
+        let commandName = args.popFirst() where commandName == DeleteUserCommand.commandName,
+        let username2 = args.popFirst() else {
+            self.argumentsMatch = false
+            return
+        }
+        self.argumentsMatch = args.isEmpty
+        self.username2 = username2
+    }
+
+    func execute() throws {
+        guard argumentsMatch else {
+            return
+        }
+        let requester = Requester(config: config)
+        let url = try requester.createApiURLForRelativeURL("config/whitelist/\(username2!)")
+        semaphore = try requester.doDeleteWithURL(url)
+    }
+
+    func waitUntilFinished() {
+        semaphore?.wait()
+    }
+}
+
 class GetBridgeConfigCommand: Command {
     static let commandName = "get-bridge-config"
 
@@ -340,6 +395,7 @@ let commands: [Command] = [
         SetBridgeIpAddressCommand(config: config, arguments: args),
         SetDeviceTypeCommand(config: config, arguments: args),
         CreateUserCommand(config: config, arguments: args),
+        DeleteUserCommand(config: config, arguments: args),
         GetBridgeConfigCommand(config: config, arguments: args)
 ]
 
