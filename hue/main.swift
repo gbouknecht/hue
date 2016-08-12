@@ -65,9 +65,8 @@ class Configuration {
     }
 
     func printToConsole() {
-        print("Configuration")
         for (key, value) in dict {
-            print("    \(key)=\(value)")
+            print("\(key)=\(value)")
         }
     }
 }
