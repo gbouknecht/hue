@@ -162,8 +162,8 @@ protocol Command {
     func waitUntilFinished()
 }
 
-class ConfigCommand: Command {
-    static let commandName = "config"
+class GetConfigCommand: Command {
+    static let commandName = "get-config"
 
     let config: Configuration
     let argumentsDescription = "\(commandName)"
@@ -174,7 +174,7 @@ class ConfigCommand: Command {
         var args = ArraySlice(arguments)
         guard
         let _ = args.popFirst(),
-        let commandName = args.popFirst() where commandName == ConfigCommand.commandName else {
+        let commandName = args.popFirst() where commandName == GetConfigCommand.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -391,7 +391,7 @@ class GetBridgeConfigCommand: Command {
 let config = Configuration()
 let args = Process.arguments
 let commands: [Command] = [
-        ConfigCommand(config: config, arguments: args),
+        GetConfigCommand(config: config, arguments: args),
         SetBridgeIpAddressCommand(config: config, arguments: args),
         SetDeviceTypeCommand(config: config, arguments: args),
         CreateUserCommand(config: config, arguments: args),
