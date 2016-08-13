@@ -387,6 +387,45 @@ class GetBridgeConfigCommand: Command {
     }
 }
 
+class GetScenesCommand: Command {
+    static let commandName = "get-scenes"
+
+    let config: Configuration
+    let argumentsDescription = "\(commandName)"
+    let argumentsMatch: Bool
+
+    var semaphore: Semaphore?
+
+    init(config: Configuration, arguments: [String]) {
+        self.config = config
+        var args = ArraySlice(arguments)
+        guard
+        let _ = args.popFirst(),
+        let commandName = args.popFirst() where commandName == GetScenesCommand.commandName else {
+            self.argumentsMatch = false
+            return
+        }
+        self.argumentsMatch = args.isEmpty
+    }
+
+    func execute() throws {
+        guard argumentsMatch else {
+            return
+        }
+        let requester = Requester(config: config)
+        let url = try requester.createApiURLForRelativeURL("scenes")
+        semaphore = try requester.doGetWithURL(url) {
+            (data) in
+            let object = try! NSJSONSerialization.JSONObjectWithData(data, options: []) as! NSDictionary
+            print(object)
+        }
+    }
+
+    func waitUntilFinished() {
+        semaphore?.wait()
+    }
+}
+
 let config = Configuration()
 let args = Process.arguments
 let commands: [Command] = [
@@ -395,7 +434,8 @@ let commands: [Command] = [
         SetDeviceTypeCommand(config: config, arguments: args),
         CreateUserCommand(config: config, arguments: args),
         DeleteUserCommand(config: config, arguments: args),
-        GetBridgeConfigCommand(config: config, arguments: args)
+        GetBridgeConfigCommand(config: config, arguments: args),
+        GetScenesCommand(config: config, arguments: args)
 ]
 
 guard let command = commands.filter({ $0.argumentsMatch }).first else {
