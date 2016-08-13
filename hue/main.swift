@@ -112,7 +112,7 @@ class Requester {
         return semaphore
     }
 
-    func doDeleteWithURL(url: NSURL, successHandler: (NSData) -> Void = { _ in }) throws -> Semaphore {
+    func doDeleteWithURL(url: NSURL, successHandler: (NSData) -> Void = { _ in return }) throws -> Semaphore {
         let request = try createDeleteRequestWithURL(url);
         let semaphore = Semaphore()
         let completionHandler = createCompletionHandlerForURL(url, semaphore: semaphore, successHandler: successHandler)
@@ -152,6 +152,29 @@ class Requester {
     }
 }
 
+class ArgumentsParser {
+    func parse1(arguments: [String]) -> (String)? {
+        var args = ArraySlice(arguments)
+        guard
+        let _ = args.popFirst(),
+        let arg0 = args.popFirst() else {
+            return nil
+        }
+        return args.isEmpty ? (arg0) : nil
+    }
+
+    func parse2(arguments: [String]) -> (String, String)? {
+        var args = ArraySlice(arguments)
+        guard
+        let _ = args.popFirst(),
+        let arg0 = args.popFirst(),
+        let arg1 = args.popFirst() else {
+            return nil
+        }
+        return args.isEmpty ? (arg0, arg1) : nil
+    }
+}
+
 protocol Command {
     var argumentsDescription: String { get }
     var argumentsMatch: Bool { get }
@@ -170,14 +193,11 @@ class GetConfigCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        var args = ArraySlice(arguments)
-        guard
-        let _ = args.popFirst(),
-        let commandName = args.popFirst() where commandName == GetConfigCommand.commandName else {
+        guard let (commandName) = ArgumentsParser().parse1(arguments) where commandName == GetConfigCommand.commandName else {
             self.argumentsMatch = false
             return
         }
-        self.argumentsMatch = args.isEmpty
+        self.argumentsMatch = true
     }
 
     func execute() {
@@ -202,15 +222,11 @@ class SetBridgeIpAddressCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        var args = ArraySlice(arguments)
-        guard
-        let _ = args.popFirst(),
-        let commandName = args.popFirst() where commandName == SetBridgeIpAddressCommand.commandName,
-        let ipAddress = args.popFirst() else {
+        guard let (commandName, ipAddress) = ArgumentsParser().parse2(arguments) where commandName == SetBridgeIpAddressCommand.commandName else {
             self.argumentsMatch = false
             return
         }
-        self.argumentsMatch = args.isEmpty
+        self.argumentsMatch = true
         self.ipAddress = ipAddress
     }
 
@@ -237,15 +253,11 @@ class SetDeviceTypeCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        var args = ArraySlice(arguments)
-        guard
-        let _ = args.popFirst(),
-        let commandName = args.popFirst() where commandName == SetDeviceTypeCommand.commandName,
-        let deviceType = args.popFirst() else {
+        guard let (commandName, deviceType) = ArgumentsParser().parse2(arguments) where commandName == SetDeviceTypeCommand.commandName else {
             self.argumentsMatch = false
             return
         }
-        self.argumentsMatch = args.isEmpty
+        self.argumentsMatch = true
         self.deviceType = deviceType
     }
 
@@ -272,14 +284,11 @@ class CreateUserCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        var args = ArraySlice(arguments)
-        guard
-        let _ = args.popFirst(),
-        let commandName = args.popFirst() where commandName == CreateUserCommand.commandName else {
+        guard let (commandName) = ArgumentsParser().parse1(arguments) where commandName == CreateUserCommand.commandName else {
             self.argumentsMatch = false
             return
         }
-        self.argumentsMatch = args.isEmpty
+        self.argumentsMatch = true
     }
 
     func execute() throws {
@@ -322,15 +331,11 @@ class DeleteUserCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        var args = ArraySlice(arguments)
-        guard
-        let _ = args.popFirst(),
-        let commandName = args.popFirst() where commandName == DeleteUserCommand.commandName,
-        let username2 = args.popFirst() else {
+        guard let (commandName, username2) = ArgumentsParser().parse2(arguments) where commandName == DeleteUserCommand.commandName else {
             self.argumentsMatch = false
             return
         }
-        self.argumentsMatch = args.isEmpty
+        self.argumentsMatch = true
         self.username2 = username2
     }
 
@@ -359,14 +364,11 @@ class GetBridgeConfigCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        var args = ArraySlice(arguments)
-        guard
-        let _ = args.popFirst(),
-        let commandName = args.popFirst() where commandName == GetBridgeConfigCommand.commandName else {
+        guard let (commandName) = ArgumentsParser().parse1(arguments) where commandName == GetBridgeConfigCommand.commandName else {
             self.argumentsMatch = false
             return
         }
-        self.argumentsMatch = args.isEmpty
+        self.argumentsMatch = true
     }
 
     func execute() throws {
@@ -398,14 +400,11 @@ class GetScenesCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        var args = ArraySlice(arguments)
-        guard
-        let _ = args.popFirst(),
-        let commandName = args.popFirst() where commandName == GetScenesCommand.commandName else {
+        guard let (commandName) = ArgumentsParser().parse1(arguments) where commandName == GetScenesCommand.commandName else {
             self.argumentsMatch = false
             return
         }
-        self.argumentsMatch = args.isEmpty
+        self.argumentsMatch = true
     }
 
     func execute() throws {
