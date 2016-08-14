@@ -392,18 +392,26 @@ class GetCommand: Command {
 }
 
 class GetBridgeConfigCommand: GetCommand {
-    static let commandName = "get-bridge-config"
-
     init(config: Configuration, arguments: [String]) {
-        super.init(config: config, arguments: arguments, commandName: GetBridgeConfigCommand.commandName, relativeURL: "config")
+        super.init(config: config, arguments: arguments, commandName: "get-bridge-config", relativeURL: "config")
     }
 }
 
 class GetScenesCommand: GetCommand {
-    static let commandName = "get-scenes"
-
     init(config: Configuration, arguments: [String]) {
-        super.init(config: config, arguments: arguments, commandName: GetScenesCommand.commandName, relativeURL: "scenes")
+        super.init(config: config, arguments: arguments, commandName: "get-scenes", relativeURL: "scenes")
+    }
+}
+
+class GetSchedulesCommand: GetCommand {
+    init(config: Configuration, arguments: [String]) {
+        super.init(config: config, arguments: arguments, commandName: "get-schedules", relativeURL: "schedules")
+    }
+}
+
+class GetGroupsCommand: GetCommand {
+    init(config: Configuration, arguments: [String]) {
+        super.init(config: config, arguments: arguments, commandName: "get-groups", relativeURL: "groups")
     }
 }
 
@@ -416,7 +424,9 @@ let commands: [Command] = [
         CreateUserCommand(config: config, arguments: args),
         DeleteUserCommand(config: config, arguments: args),
         GetBridgeConfigCommand(config: config, arguments: args),
-        GetScenesCommand(config: config, arguments: args)
+        GetScenesCommand(config: config, arguments: args),
+        GetSchedulesCommand(config: config, arguments: args),
+        GetGroupsCommand(config: config, arguments: args)
 ]
 
 guard let command = commands.filter({ $0.argumentsMatch }).first else {
