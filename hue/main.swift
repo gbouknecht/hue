@@ -415,6 +415,12 @@ class GetGroupsCommand: GetCommand {
     }
 }
 
+class GetSensorsCommand: GetCommand {
+    init(config: Configuration, arguments: [String]) {
+        super.init(config: config, arguments: arguments, commandName: "get-sensors", relativeURL: "sensors")
+    }
+}
+
 let config = Configuration()
 let args = Process.arguments
 let commands: [Command] = [
@@ -426,7 +432,8 @@ let commands: [Command] = [
         GetBridgeConfigCommand(config: config, arguments: args),
         GetScenesCommand(config: config, arguments: args),
         GetSchedulesCommand(config: config, arguments: args),
-        GetGroupsCommand(config: config, arguments: args)
+        GetGroupsCommand(config: config, arguments: args),
+        GetSensorsCommand(config: config, arguments: args)
 ]
 
 guard let command = commands.filter({ $0.argumentsMatch }).first else {
