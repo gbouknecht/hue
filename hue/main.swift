@@ -353,18 +353,20 @@ class DeleteUserCommand: Command {
     }
 }
 
-class GetBridgeConfigCommand: Command {
-    static let commandName = "get-bridge-config"
-
+class GetCommand: Command {
     let config: Configuration
-    let argumentsDescription = "\(commandName)"
+    let argumentsDescription: String
     let argumentsMatch: Bool
+
+    let relativeURL: String
 
     var semaphore: Semaphore?
 
-    init(config: Configuration, arguments: [String]) {
+    init(config: Configuration, arguments: [String], commandName: String, relativeURL: String) {
         self.config = config
-        guard let (commandName) = ArgumentsParser().parse1(arguments) where commandName == GetBridgeConfigCommand.commandName else {
+        self.argumentsDescription = "\(commandName)"
+        self.relativeURL = relativeURL
+        guard let (commandNameFromArgs) = ArgumentsParser().parse1(arguments) where commandNameFromArgs == commandName else {
             self.argumentsMatch = false
             return
         }
@@ -376,7 +378,7 @@ class GetBridgeConfigCommand: Command {
             return
         }
         let requester = Requester(config: config)
-        let url = try requester.createApiURLForRelativeURL("config")
+        let url = try requester.createApiURLForRelativeURL(relativeURL)
         semaphore = try requester.doGetWithURL(url) {
             (data) in
             let object = try! NSJSONSerialization.JSONObjectWithData(data, options: []) as! NSDictionary
@@ -389,39 +391,19 @@ class GetBridgeConfigCommand: Command {
     }
 }
 
-class GetScenesCommand: Command {
-    static let commandName = "get-scenes"
-
-    let config: Configuration
-    let argumentsDescription = "\(commandName)"
-    let argumentsMatch: Bool
-
-    var semaphore: Semaphore?
+class GetBridgeConfigCommand: GetCommand {
+    static let commandName = "get-bridge-config"
 
     init(config: Configuration, arguments: [String]) {
-        self.config = config
-        guard let (commandName) = ArgumentsParser().parse1(arguments) where commandName == GetScenesCommand.commandName else {
-            self.argumentsMatch = false
-            return
-        }
-        self.argumentsMatch = true
+        super.init(config: config, arguments: arguments, commandName: GetBridgeConfigCommand.commandName, relativeURL: "config")
     }
+}
 
-    func execute() throws {
-        guard argumentsMatch else {
-            return
-        }
-        let requester = Requester(config: config)
-        let url = try requester.createApiURLForRelativeURL("scenes")
-        semaphore = try requester.doGetWithURL(url) {
-            (data) in
-            let object = try! NSJSONSerialization.JSONObjectWithData(data, options: []) as! NSDictionary
-            print(object)
-        }
-    }
+class GetScenesCommand: GetCommand {
+    static let commandName = "get-scenes"
 
-    func waitUntilFinished() {
-        semaphore?.wait()
+    init(config: Configuration, arguments: [String]) {
+        super.init(config: config, arguments: arguments, commandName: GetScenesCommand.commandName, relativeURL: "scenes")
     }
 }
 
