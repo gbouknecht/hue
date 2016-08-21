@@ -89,10 +89,15 @@ class Requester {
         guard let ipAddress = config.ipAddress else {
             throw Error.MissingConfiguration(message: "Missing ip address")
         }
+        let path = try createApiPathForRelativeURL(relativeURL)
+        return NSURL(string: "http://\(ipAddress)\(path)")!
+    }
+
+    func createApiPathForRelativeURL(relativeURL: String) throws -> String {
         guard let username = config.username else {
             throw Error.MissingConfiguration(message: "Missing username")
         }
-        return NSURL(string: "http://\(ipAddress)/api/\(username)/\(relativeURL)")!
+        return "/api/\(username)/\(relativeURL)"
     }
 
     func doGetWithURL(url: NSURL, successHandler: (NSData) -> Void) throws -> Semaphore {
@@ -172,6 +177,18 @@ class ArgumentsParser {
             return nil
         }
         return args.isEmpty ? (arg0, arg1) : nil
+    }
+
+    func parse3(arguments: [String]) -> (String, String, String)? {
+        var args = ArraySlice(arguments)
+        guard
+        let _ = args.popFirst(),
+        let arg0 = args.popFirst(),
+        let arg1 = args.popFirst(),
+        let arg2 = args.popFirst() else {
+            return nil
+        }
+        return args.isEmpty ? (arg0, arg1, arg2) : nil
     }
 }
 
@@ -433,6 +450,91 @@ class GetRulesCommand: GetCommand {
     }
 }
 
+class CreateScheduleLightAlert: Command {
+    static let commandName = "create-schedule-light-alert"
+
+    let config: Configuration
+    let argumentsDescription = "\(commandName) <local-time> <light-id>"
+    let argumentsMatch: Bool
+
+    var localTime: String?
+    var lightId: String?
+
+    var semaphore: Semaphore?
+
+    init(config: Configuration, arguments: [String]) {
+        self.config = config
+        guard let (commandName, localTime, lightId) = ArgumentsParser().parse3(arguments) where commandName == CreateScheduleLightAlert.commandName else {
+            self.argumentsMatch = false
+            return
+        }
+        self.argumentsMatch = true
+        self.localTime = localTime
+        self.lightId = lightId
+    }
+
+    func execute() throws {
+        guard argumentsMatch else {
+            return
+        }
+        let requester = Requester(config: config)
+        let url = try requester.createApiURLForRelativeURL("schedules")
+        let commandAddress = try requester.createApiPathForRelativeURL("lights/\(lightId!)/state")
+        let command = ["address": "\(commandAddress)", "method": "PUT", "body": ["alert": "select"]]
+        semaphore = try requester.doPostWithURL(url, body: ["name": "Alert", "command": command, "localtime": localTime!]) {
+            (data) in
+            let array = try! NSJSONSerialization.JSONObjectWithData(data, options: []) as! NSArray
+            let object = array.firstObject as! NSDictionary
+            if let error = object["error"] as? NSDictionary {
+                let description = error["description"] as! String
+                print("Error creating schedule: \(description)")
+            } else if let success = object["success"] as? NSDictionary {
+                let id = success["id"] as! String
+                print("Created schedule with id \(id)")
+            }
+        }
+    }
+
+    func waitUntilFinished() {
+        semaphore?.wait()
+    }
+}
+
+class DeleteSchedule: Command {
+    static let commandName = "delete-schedule"
+
+    let config: Configuration
+    let argumentsDescription = "\(commandName) <schedule-id>"
+    let argumentsMatch: Bool
+
+    var scheduleId: String?
+
+    var semaphore: Semaphore?
+
+    init(config: Configuration, arguments: [String]) {
+        self.config = config
+        guard let (commandName, scheduleId) = ArgumentsParser().parse2(arguments) where commandName == DeleteSchedule.commandName else {
+            self.argumentsMatch = false
+            return
+        }
+        self.argumentsMatch = true
+        self.scheduleId = scheduleId
+    }
+
+    func execute() throws {
+        guard argumentsMatch else {
+            return
+        }
+        let requester = Requester(config: config)
+        let url = try requester.createApiURLForRelativeURL("schedules/\(scheduleId!)")
+        semaphore = try requester.doDeleteWithURL(url)
+    }
+
+    func waitUntilFinished() {
+        semaphore?.wait()
+    }
+}
+
 let config = Configuration()
 let args = Process.arguments
 let commands: [Command] = [
@@ -447,7 +549,9 @@ let commands: [Command] = [
         GetGroupsCommand(config: config, arguments: args),
         GetSensorsCommand(config: config, arguments: args),
         GetLightsCommand(config: config, arguments: args),
-        GetRulesCommand(config: config, arguments: args)
+        GetRulesCommand(config: config, arguments: args),
+        CreateScheduleLightAlert(config: config, arguments: args),
+        DeleteSchedule(config: config, arguments: args)
 ]
 
 guard let command = commands.filter({ $0.argumentsMatch }).first else {
