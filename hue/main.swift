@@ -157,6 +157,38 @@ class Requester {
     }
 }
 
+class LightScheduler {
+    let config: Configuration
+
+    let localTime: String
+    let lightId: String
+
+    init(config: Configuration, localTime: String, lightId: String) {
+        self.config = config
+        self.localTime = localTime
+        self.lightId = lightId
+    }
+
+    func createScheduleWithCommandBody(body: NSDictionary) throws -> Semaphore {
+        let requester = Requester(config: config)
+        let url = try requester.createApiURLForRelativeURL("schedules")
+        let commandAddress = try requester.createApiPathForRelativeURL("lights/\(lightId)/state")
+        let command = ["address": "\(commandAddress)", "method": "PUT", "body": body]
+        return try requester.doPostWithURL(url, body: ["name": "Schedule Light", "command": command, "localtime": localTime]) {
+            (data) in
+            let array = try! NSJSONSerialization.JSONObjectWithData(data, options: []) as! NSArray
+            let object = array.firstObject as! NSDictionary
+            if let error = object["error"] as? NSDictionary {
+                let description = error["description"] as! String
+                print("Error creating schedule: \(description)")
+            } else if let success = object["success"] as? NSDictionary {
+                let id = success["id"] as! String
+                print("Created schedule with id \(id)")
+            }
+        }
+    }
+}
+
 class ArgumentsParser {
     func parse1(arguments: [String]) -> (String)? {
         var args = ArraySlice(arguments)
@@ -189,6 +221,19 @@ class ArgumentsParser {
             return nil
         }
         return args.isEmpty ? (arg0, arg1, arg2) : nil
+    }
+
+    func parse4(arguments: [String]) -> (String, String, String, String)? {
+        var args = ArraySlice(arguments)
+        guard
+        let _ = args.popFirst(),
+        let arg0 = args.popFirst(),
+        let arg1 = args.popFirst(),
+        let arg2 = args.popFirst(),
+        let arg3 = args.popFirst() else {
+            return nil
+        }
+        return args.isEmpty ? (arg0, arg1, arg2, arg3) : nil
     }
 }
 
@@ -450,8 +495,46 @@ class GetRulesCommand: GetCommand {
     }
 }
 
-class CreateScheduleLightAlert: Command {
-    static let commandName = "create-schedule-light-alert"
+class CreateScheduleLightOn: Command {
+    static let commandName = "create-schedule-light-on"
+
+    let config: Configuration
+    let argumentsDescription = "\(commandName) <local-time> <light-id> <brightness>"
+    let argumentsMatch: Bool
+
+    var localTime: String?
+    var lightId: String?
+    var brightness: Int?
+
+    var semaphore: Semaphore?
+
+    init(config: Configuration, arguments: [String]) {
+        self.config = config
+        guard let (commandName, localTime, lightId, brightness) = ArgumentsParser().parse4(arguments) where commandName == CreateScheduleLightOn.commandName else {
+            self.argumentsMatch = false
+            return
+        }
+        self.argumentsMatch = true
+        self.localTime = localTime
+        self.lightId = lightId
+        self.brightness = Int(brightness) ?? 254
+    }
+
+    func execute() throws {
+        guard argumentsMatch else {
+            return
+        }
+        let scheduler = LightScheduler(config: config, localTime: localTime!, lightId: lightId!)
+        semaphore = try scheduler.createScheduleWithCommandBody(["on": true, "bri": brightness!])
+    }
+
+    func waitUntilFinished() {
+        semaphore?.wait()
+    }
+}
+
+class CreateScheduleLightOff: Command {
+    static let commandName = "create-schedule-light-off"
 
     let config: Configuration
     let argumentsDescription = "\(commandName) <local-time> <light-id>"
@@ -464,7 +547,7 @@ class CreateScheduleLightAlert: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName, localTime, lightId) = ArgumentsParser().parse3(arguments) where commandName == CreateScheduleLightAlert.commandName else {
+        guard let (commandName, localTime, lightId) = ArgumentsParser().parse3(arguments) where commandName == CreateScheduleLightOff.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -477,22 +560,8 @@ class CreateScheduleLightAlert: Command {
         guard argumentsMatch else {
             return
         }
-        let requester = Requester(config: config)
-        let url = try requester.createApiURLForRelativeURL("schedules")
-        let commandAddress = try requester.createApiPathForRelativeURL("lights/\(lightId!)/state")
-        let command = ["address": "\(commandAddress)", "method": "PUT", "body": ["alert": "select"]]
-        semaphore = try requester.doPostWithURL(url, body: ["name": "Alert", "command": command, "localtime": localTime!]) {
-            (data) in
-            let array = try! NSJSONSerialization.JSONObjectWithData(data, options: []) as! NSArray
-            let object = array.firstObject as! NSDictionary
-            if let error = object["error"] as? NSDictionary {
-                let description = error["description"] as! String
-                print("Error creating schedule: \(description)")
-            } else if let success = object["success"] as? NSDictionary {
-                let id = success["id"] as! String
-                print("Created schedule with id \(id)")
-            }
-        }
+        let scheduler = LightScheduler(config: config, localTime: localTime!, lightId: lightId!)
+        semaphore = try scheduler.createScheduleWithCommandBody(["on": false])
     }
 
     func waitUntilFinished() {
@@ -550,7 +619,8 @@ let commands: [Command] = [
         GetSensorsCommand(config: config, arguments: args),
         GetLightsCommand(config: config, arguments: args),
         GetRulesCommand(config: config, arguments: args),
-        CreateScheduleLightAlert(config: config, arguments: args),
+        CreateScheduleLightOn(config: config, arguments: args),
+        CreateScheduleLightOff(config: config, arguments: args),
         DeleteSchedule(config: config, arguments: args)
 ]
 
