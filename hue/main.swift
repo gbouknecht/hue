@@ -2,24 +2,24 @@
 
 import Foundation
 
-enum Error: ErrorType {
-    case MissingConfiguration(message:String)
+enum Error: Error {
+    case missingConfiguration(message:String)
 }
 
 class Semaphore {
-    let sema = dispatch_semaphore_create(0)
+    let sema = DispatchSemaphore(value: 0)
 
     func signal() {
-        dispatch_semaphore_signal(sema)
+        sema.signal()
     }
 
     func wait() {
-        dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER)
+        sema.wait(timeout: DispatchTime.distantFuture)
     }
 }
 
 class Configuration {
-    static let dictPath = NSString(string: "~/.hue.conf.plist").stringByExpandingTildeInPath
+    static let dictPath = NSString(string: "~/.hue.conf.plist").expandingTildeInPath
     let dict: NSMutableDictionary
 
     static let ipAddressKey = "IpAddress"
@@ -58,7 +58,7 @@ class Configuration {
     }
 
     func write() {
-        let successful = dict.writeToFile(Configuration.dictPath, atomically: true)
+        let successful = dict.write(toFile: Configuration.dictPath, atomically: true)
         if !successful {
             print("Error writing configuration file \(Configuration.dictPath)")
         }
@@ -78,55 +78,55 @@ class Requester {
         self.config = config
     }
 
-    func createApiURLWithoutUsernameForRelativeURL(relativeURL: String) throws -> NSURL {
+    func createApiURLWithoutUsernameForRelativeURL(_ relativeURL: String) throws -> URL {
         guard let ipAddress = config.ipAddress else {
-            throw Error.MissingConfiguration(message: "Missing ip address")
+            throw Error.missingConfiguration(message: "Missing ip address")
         }
-        return NSURL(string: "http://\(ipAddress)/api/\(relativeURL)")!
+        return URL(string: "http://\(ipAddress)/api/\(relativeURL)")!
     }
 
-    func createApiURLForRelativeURL(relativeURL: String) throws -> NSURL {
+    func createApiURLForRelativeURL(_ relativeURL: String) throws -> URL {
         guard let ipAddress = config.ipAddress else {
-            throw Error.MissingConfiguration(message: "Missing ip address")
+            throw Error.missingConfiguration(message: "Missing ip address")
         }
         let path = try createApiPathForRelativeURL(relativeURL)
-        return NSURL(string: "http://\(ipAddress)\(path)")!
+        return URL(string: "http://\(ipAddress)\(path)")!
     }
 
-    func createApiPathForRelativeURL(relativeURL: String) throws -> String {
+    func createApiPathForRelativeURL(_ relativeURL: String) throws -> String {
         guard let username = config.username else {
-            throw Error.MissingConfiguration(message: "Missing username")
+            throw Error.missingConfiguration(message: "Missing username")
         }
         return "/api/\(username)/\(relativeURL)"
     }
 
-    func doGetWithURL(url: NSURL, successHandler: (NSData) -> Void) throws -> Semaphore {
+    func doGetWithURL(_ url: URL, successHandler: @escaping (Data) -> Void) throws -> Semaphore {
         let semaphore = Semaphore()
         let completionHandler = createCompletionHandlerForURL(url, semaphore: semaphore, successHandler: successHandler)
-        let task = NSURLSession.sharedSession().dataTaskWithURL(url, completionHandler: completionHandler)
+        let task = URLSession.shared.dataTask(with: url, completionHandler: completionHandler as! (Data?, URLResponse?, Error?) -> Void)
         task.resume()
         return semaphore
     }
 
-    func doPostWithURL(url: NSURL, body: AnyObject, successHandler: (NSData) -> Void) throws -> Semaphore {
+    func doPostWithURL(_ url: URL, body: AnyObject, successHandler: @escaping (Data) -> Void) throws -> Semaphore {
         let request = try createPostRequestWithURL(url, body: body)
         let semaphore = Semaphore()
         let completionHandler = createCompletionHandlerForURL(url, semaphore: semaphore, successHandler: successHandler)
-        let task = NSURLSession.sharedSession().dataTaskWithRequest(request, completionHandler: completionHandler)
+        let task = URLSession.shared.dataTask(with: request, completionHandler: completionHandler as! (Data?, URLResponse?, Error?) -> Void)
         task.resume()
         return semaphore
     }
 
-    func doDeleteWithURL(url: NSURL, successHandler: (NSData) -> Void = { _ in return }) throws -> Semaphore {
+    func doDeleteWithURL(_ url: URL, successHandler: @escaping (Data) -> Void = { _ in return }) throws -> Semaphore {
         let request = try createDeleteRequestWithURL(url);
         let semaphore = Semaphore()
         let completionHandler = createCompletionHandlerForURL(url, semaphore: semaphore, successHandler: successHandler)
-        let task = NSURLSession.sharedSession().dataTaskWithRequest(request, completionHandler: completionHandler)
+        let task = URLSession.shared.dataTask(with: request, completionHandler: completionHandler as! (Data?, URLResponse?, Error?) -> Void)
         task.resume()
         return semaphore
     }
 
-    func createCompletionHandlerForURL(url: NSURL, semaphore: Semaphore, successHandler: (NSData) -> Void) -> (NSData?, NSURLResponse?, NSError?) -> Void {
+    func createCompletionHandlerForURL(_ url: URL, semaphore: Semaphore, successHandler: @escaping (Data) -> Void) -> (Data?, URLResponse?, NSError?) -> Void {
         return {
             (data, response, error) in
             if let error = error {
@@ -140,20 +140,20 @@ class Requester {
         }
     }
 
-    func createPostRequestWithURL(url: NSURL, body: AnyObject) throws -> NSURLRequest {
-        let request = NSMutableURLRequest(URL: url)
-        request.HTTPMethod = "POST"
+    func createPostRequestWithURL(_ url: URL, body: AnyObject) throws -> URLRequest {
+        let request = NSMutableURLRequest(url: url)
+        request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.HTTPBody = try NSJSONSerialization.dataWithJSONObject(body, options: [])
-        return request
+        request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
+        return request as URLRequest
     }
 
-    func createDeleteRequestWithURL(url: NSURL) throws -> NSURLRequest {
-        let request = NSMutableURLRequest(URL: url)
-        request.HTTPMethod = "DELETE"
+    func createDeleteRequestWithURL(_ url: URL) throws -> URLRequest {
+        let request = NSMutableURLRequest(url: url)
+        request.httpMethod = "DELETE"
         request.addValue("application/json", forHTTPHeaderField: "Accept")
-        return request
+        return request as URLRequest
     }
 }
 
@@ -169,14 +169,14 @@ class LightScheduler {
         self.lightId = lightId
     }
 
-    func createScheduleWithCommandBody(body: NSDictionary) throws -> Semaphore {
+    func createScheduleWithCommandBody(_ body: NSDictionary) throws -> Semaphore {
         let requester = Requester(config: config)
         let url = try requester.createApiURLForRelativeURL("schedules")
         let commandAddress = try requester.createApiPathForRelativeURL("lights/\(lightId)/state")
-        let command = ["address": "\(commandAddress)", "method": "PUT", "body": body]
+        let command = ["address": "\(commandAddress)", "method": "PUT", "body": body] as [String : Any]
         return try requester.doPostWithURL(url, body: ["name": "Schedule Light", "command": command, "localtime": localTime]) {
             (data) in
-            let array = try! NSJSONSerialization.JSONObjectWithData(data, options: []) as! NSArray
+            let array = try! JSONSerialization.jsonObject(with: data, options: []) as! NSArray
             let object = array.firstObject as! NSDictionary
             if let error = object["error"] as? NSDictionary {
                 let description = error["description"] as! String
@@ -190,7 +190,7 @@ class LightScheduler {
 }
 
 class ArgumentsParser {
-    func parse1(arguments: [String]) -> (String)? {
+    func parse1(_ arguments: [String]) -> (String)? {
         var args = ArraySlice(arguments)
         guard
         let _ = args.popFirst(),
@@ -200,7 +200,7 @@ class ArgumentsParser {
         return args.isEmpty ? (arg0) : nil
     }
 
-    func parse2(arguments: [String]) -> (String, String)? {
+    func parse2(_ arguments: [String]) -> (String, String)? {
         var args = ArraySlice(arguments)
         guard
         let _ = args.popFirst(),
@@ -211,7 +211,7 @@ class ArgumentsParser {
         return args.isEmpty ? (arg0, arg1) : nil
     }
 
-    func parse3(arguments: [String]) -> (String, String, String)? {
+    func parse3(_ arguments: [String]) -> (String, String, String)? {
         var args = ArraySlice(arguments)
         guard
         let _ = args.popFirst(),
@@ -223,7 +223,7 @@ class ArgumentsParser {
         return args.isEmpty ? (arg0, arg1, arg2) : nil
     }
 
-    func parse4(arguments: [String]) -> (String, String, String, String)? {
+    func parse4(_ arguments: [String]) -> (String, String, String, String)? {
         var args = ArraySlice(arguments)
         guard
         let _ = args.popFirst(),
@@ -255,7 +255,7 @@ class GetConfigCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName) = ArgumentsParser().parse1(arguments) where commandName == GetConfigCommand.commandName else {
+        guard let (commandName) = ArgumentsParser().parse1(arguments) , commandName == GetConfigCommand.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -284,7 +284,7 @@ class SetBridgeIpAddressCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName, ipAddress) = ArgumentsParser().parse2(arguments) where commandName == SetBridgeIpAddressCommand.commandName else {
+        guard let (commandName, ipAddress) = ArgumentsParser().parse2(arguments) , commandName == SetBridgeIpAddressCommand.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -315,7 +315,7 @@ class SetDeviceTypeCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName, deviceType) = ArgumentsParser().parse2(arguments) where commandName == SetDeviceTypeCommand.commandName else {
+        guard let (commandName, deviceType) = ArgumentsParser().parse2(arguments) , commandName == SetDeviceTypeCommand.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -346,7 +346,7 @@ class CreateUserCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName) = ArgumentsParser().parse1(arguments) where commandName == CreateUserCommand.commandName else {
+        guard let (commandName) = ArgumentsParser().parse1(arguments) , commandName == CreateUserCommand.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -358,13 +358,13 @@ class CreateUserCommand: Command {
             return
         }
         guard let deviceType = config.deviceType else {
-            throw Error.MissingConfiguration(message: "Missing device type")
+            throw Error.missingConfiguration(message: "Missing device type")
         }
         let requester = Requester(config: config)
         let url = try requester.createApiURLWithoutUsernameForRelativeURL("")
         semaphore = try requester.doPostWithURL(url, body: ["devicetype": "\(deviceType)"]) {
             (data) in
-            let array = try! NSJSONSerialization.JSONObjectWithData(data, options: []) as! NSArray
+            let array = try! JSONSerialization.jsonObject(with: data, options: []) as! NSArray
             let object = array.firstObject as! NSDictionary
             if let _ = object["error"] {
                 print("Press link button on bridge and then execute this command again within 30 seconds")
@@ -393,7 +393,7 @@ class DeleteUserCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName, username2) = ArgumentsParser().parse2(arguments) where commandName == DeleteUserCommand.commandName else {
+        guard let (commandName, username2) = ArgumentsParser().parse2(arguments) , commandName == DeleteUserCommand.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -428,7 +428,7 @@ class GetCommand: Command {
         self.config = config
         self.argumentsDescription = "\(commandName)"
         self.relativeURL = relativeURL
-        guard let (commandNameFromArgs) = ArgumentsParser().parse1(arguments) where commandNameFromArgs == commandName else {
+        guard let (commandNameFromArgs) = ArgumentsParser().parse1(arguments) , commandNameFromArgs == commandName else {
             self.argumentsMatch = false
             return
         }
@@ -443,7 +443,7 @@ class GetCommand: Command {
         let url = try requester.createApiURLForRelativeURL(relativeURL)
         semaphore = try requester.doGetWithURL(url) {
             (data) in
-            let object = try! NSJSONSerialization.JSONObjectWithData(data, options: []) as! NSDictionary
+            let object = try! JSONSerialization.jsonObject(with: data, options: []) as! NSDictionary
             print(object)
         }
     }
@@ -510,7 +510,7 @@ class CreateScheduleLightOn: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName, localTime, lightId, brightness) = ArgumentsParser().parse4(arguments) where commandName == CreateScheduleLightOn.commandName else {
+        guard let (commandName, localTime, lightId, brightness) = ArgumentsParser().parse4(arguments) , commandName == CreateScheduleLightOn.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -547,7 +547,7 @@ class CreateScheduleLightOff: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName, localTime, lightId) = ArgumentsParser().parse3(arguments) where commandName == CreateScheduleLightOff.commandName else {
+        guard let (commandName, localTime, lightId) = ArgumentsParser().parse3(arguments) , commandName == CreateScheduleLightOff.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -582,7 +582,7 @@ class DeleteSchedule: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName, scheduleId) = ArgumentsParser().parse2(arguments) where commandName == DeleteSchedule.commandName else {
+        guard let (commandName, scheduleId) = ArgumentsParser().parse2(arguments) , commandName == DeleteSchedule.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -605,7 +605,7 @@ class DeleteSchedule: Command {
 }
 
 let config = Configuration()
-let args = Process.arguments
+let args = CommandLine.arguments
 let commands: [Command] = [
         GetConfigCommand(config: config, arguments: args),
         SetBridgeIpAddressCommand(config: config, arguments: args),
@@ -625,7 +625,7 @@ let commands: [Command] = [
 ]
 
 guard let command = commands.filter({ $0.argumentsMatch }).first else {
-    let scriptName = String(args[0].characters.split("/").last!)
+    let scriptName = String(args[0].characters.split(separator: "/").last!)
     print("usage: \(scriptName) <command> [<args>]")
     print()
     print("Available commands:")
@@ -639,7 +639,7 @@ guard let command = commands.filter({ $0.argumentsMatch }).first else {
 do {
     try command.execute()
     command.waitUntilFinished()
-} catch Error.MissingConfiguration(let message) {
+} catch Error.missingConfiguration(let message) {
     print(message)
 } catch {
     print("Unknown error")
