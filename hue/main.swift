@@ -2,7 +2,7 @@
 
 import Foundation
 
-enum Error: Error {
+enum HueError: Error {
     case missingConfiguration(message:String)
 }
 
@@ -14,7 +14,7 @@ class Semaphore {
     }
 
     func wait() {
-        sema.wait(timeout: DispatchTime.distantFuture)
+        sema.wait()
     }
 }
 
@@ -80,14 +80,14 @@ class Requester {
 
     func createApiURLWithoutUsernameForRelativeURL(_ relativeURL: String) throws -> URL {
         guard let ipAddress = config.ipAddress else {
-            throw Error.missingConfiguration(message: "Missing ip address")
+            throw HueError.missingConfiguration(message: "Missing ip address")
         }
         return URL(string: "http://\(ipAddress)/api/\(relativeURL)")!
     }
 
     func createApiURLForRelativeURL(_ relativeURL: String) throws -> URL {
         guard let ipAddress = config.ipAddress else {
-            throw Error.missingConfiguration(message: "Missing ip address")
+            throw HueError.missingConfiguration(message: "Missing ip address")
         }
         let path = try createApiPathForRelativeURL(relativeURL)
         return URL(string: "http://\(ipAddress)\(path)")!
@@ -95,7 +95,7 @@ class Requester {
 
     func createApiPathForRelativeURL(_ relativeURL: String) throws -> String {
         guard let username = config.username else {
-            throw Error.missingConfiguration(message: "Missing username")
+            throw HueError.missingConfiguration(message: "Missing username")
         }
         return "/api/\(username)/\(relativeURL)"
     }
@@ -103,16 +103,16 @@ class Requester {
     func doGetWithURL(_ url: URL, successHandler: @escaping (Data) -> Void) throws -> Semaphore {
         let semaphore = Semaphore()
         let completionHandler = createCompletionHandlerForURL(url, semaphore: semaphore, successHandler: successHandler)
-        let task = URLSession.shared.dataTask(with: url, completionHandler: completionHandler as! (Data?, URLResponse?, Error?) -> Void)
+        let task = URLSession.shared.dataTask(with: url, completionHandler: completionHandler)
         task.resume()
         return semaphore
     }
 
-    func doPostWithURL(_ url: URL, body: AnyObject, successHandler: @escaping (Data) -> Void) throws -> Semaphore {
+    func doPostWithURL(_ url: URL, body: Any, successHandler: @escaping (Data) -> Void) throws -> Semaphore {
         let request = try createPostRequestWithURL(url, body: body)
         let semaphore = Semaphore()
         let completionHandler = createCompletionHandlerForURL(url, semaphore: semaphore, successHandler: successHandler)
-        let task = URLSession.shared.dataTask(with: request, completionHandler: completionHandler as! (Data?, URLResponse?, Error?) -> Void)
+        let task = URLSession.shared.dataTask(with: request, completionHandler: completionHandler)
         task.resume()
         return semaphore
     }
@@ -121,12 +121,12 @@ class Requester {
         let request = try createDeleteRequestWithURL(url);
         let semaphore = Semaphore()
         let completionHandler = createCompletionHandlerForURL(url, semaphore: semaphore, successHandler: successHandler)
-        let task = URLSession.shared.dataTask(with: request, completionHandler: completionHandler as! (Data?, URLResponse?, Error?) -> Void)
+        let task = URLSession.shared.dataTask(with: request, completionHandler: completionHandler)
         task.resume()
         return semaphore
     }
 
-    func createCompletionHandlerForURL(_ url: URL, semaphore: Semaphore, successHandler: @escaping (Data) -> Void) -> (Data?, URLResponse?, NSError?) -> Void {
+    func createCompletionHandlerForURL(_ url: URL, semaphore: Semaphore, successHandler: @escaping (Data) -> Void) -> (Data?, URLResponse?, Error?) -> Void {
         return {
             (data, response, error) in
             if let error = error {
@@ -140,7 +140,7 @@ class Requester {
         }
     }
 
-    func createPostRequestWithURL(_ url: URL, body: AnyObject) throws -> URLRequest {
+    func createPostRequestWithURL(_ url: URL, body: Any) throws -> URLRequest {
         let request = NSMutableURLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -358,7 +358,7 @@ class CreateUserCommand: Command {
             return
         }
         guard let deviceType = config.deviceType else {
-            throw Error.missingConfiguration(message: "Missing device type")
+            throw HueError.missingConfiguration(message: "Missing device type")
         }
         let requester = Requester(config: config)
         let url = try requester.createApiURLWithoutUsernameForRelativeURL("")
@@ -428,7 +428,7 @@ class GetCommand: Command {
         self.config = config
         self.argumentsDescription = "\(commandName)"
         self.relativeURL = relativeURL
-        guard let (commandNameFromArgs) = ArgumentsParser().parse1(arguments) , commandNameFromArgs == commandName else {
+        guard let (commandNameFromArgs) = ArgumentsParser().parse1(arguments), commandNameFromArgs == commandName else {
             self.argumentsMatch = false
             return
         }
@@ -639,7 +639,7 @@ guard let command = commands.filter({ $0.argumentsMatch }).first else {
 do {
     try command.execute()
     command.waitUntilFinished()
-} catch Error.missingConfiguration(let message) {
+} catch HueError.missingConfiguration(let message) {
     print(message)
 } catch {
     print("Unknown error")
