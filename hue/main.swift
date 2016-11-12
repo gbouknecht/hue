@@ -78,55 +78,55 @@ class Requester {
         self.config = config
     }
 
-    func createApiURLWithoutUsernameForRelativeURL(_ relativeURL: String) throws -> URL {
+    func createApiURLWithoutUsername(forRelativeURL relativeURL: String) throws -> URL {
         guard let ipAddress = config.ipAddress else {
             throw HueError.missingConfiguration(message: "Missing ip address")
         }
         return URL(string: "http://\(ipAddress)/api/\(relativeURL)")!
     }
 
-    func createApiURLForRelativeURL(_ relativeURL: String) throws -> URL {
+    func createApiURL(forRelativeURL relativeURL: String) throws -> URL {
         guard let ipAddress = config.ipAddress else {
             throw HueError.missingConfiguration(message: "Missing ip address")
         }
-        let path = try createApiPathForRelativeURL(relativeURL)
+        let path = try createApiPath(forRelativeURL: relativeURL)
         return URL(string: "http://\(ipAddress)\(path)")!
     }
 
-    func createApiPathForRelativeURL(_ relativeURL: String) throws -> String {
+    func createApiPath(forRelativeURL relativeURL: String) throws -> String {
         guard let username = config.username else {
             throw HueError.missingConfiguration(message: "Missing username")
         }
         return "/api/\(username)/\(relativeURL)"
     }
 
-    func doGetWithURL(_ url: URL, successHandler: @escaping (Data) -> Void) throws -> Semaphore {
+    func doGet(with url: URL, successHandler: @escaping (Data) -> Void) throws -> Semaphore {
         let semaphore = Semaphore()
-        let completionHandler = createCompletionHandlerForURL(url, semaphore: semaphore, successHandler: successHandler)
+        let completionHandler = createCompletionHandler(forURL: url, semaphore: semaphore, successHandler: successHandler)
         let task = URLSession.shared.dataTask(with: url, completionHandler: completionHandler)
         task.resume()
         return semaphore
     }
 
-    func doPostWithURL(_ url: URL, body: Any, successHandler: @escaping (Data) -> Void) throws -> Semaphore {
-        let request = try createPostRequestWithURL(url, body: body)
+    func doPost(with url: URL, body: Any, successHandler: @escaping (Data) -> Void) throws -> Semaphore {
+        let request = try createPostRequest(with: url, body: body)
         let semaphore = Semaphore()
-        let completionHandler = createCompletionHandlerForURL(url, semaphore: semaphore, successHandler: successHandler)
+        let completionHandler = createCompletionHandler(forURL: url, semaphore: semaphore, successHandler: successHandler)
         let task = URLSession.shared.dataTask(with: request, completionHandler: completionHandler)
         task.resume()
         return semaphore
     }
 
-    func doDeleteWithURL(_ url: URL, successHandler: @escaping (Data) -> Void = { _ in return }) throws -> Semaphore {
-        let request = try createDeleteRequestWithURL(url);
+    func doDelete(with url: URL, successHandler: @escaping (Data) -> Void = { _ in return }) throws -> Semaphore {
+        let request = try createDeleteRequest(with: url);
         let semaphore = Semaphore()
-        let completionHandler = createCompletionHandlerForURL(url, semaphore: semaphore, successHandler: successHandler)
+        let completionHandler = createCompletionHandler(forURL: url, semaphore: semaphore, successHandler: successHandler)
         let task = URLSession.shared.dataTask(with: request, completionHandler: completionHandler)
         task.resume()
         return semaphore
     }
 
-    func createCompletionHandlerForURL(_ url: URL, semaphore: Semaphore, successHandler: @escaping (Data) -> Void) -> (Data?, URLResponse?, Error?) -> Void {
+    func createCompletionHandler(forURL url: URL, semaphore: Semaphore, successHandler: @escaping (Data) -> Void) -> (Data?, URLResponse?, Error?) -> Void {
         return {
             (data, response, error) in
             if let error = error {
@@ -140,7 +140,7 @@ class Requester {
         }
     }
 
-    func createPostRequestWithURL(_ url: URL, body: Any) throws -> URLRequest {
+    func createPostRequest(with url: URL, body: Any) throws -> URLRequest {
         let request = NSMutableURLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -149,7 +149,7 @@ class Requester {
         return request as URLRequest
     }
 
-    func createDeleteRequestWithURL(_ url: URL) throws -> URLRequest {
+    func createDeleteRequest(with url: URL) throws -> URLRequest {
         let request = NSMutableURLRequest(url: url)
         request.httpMethod = "DELETE"
         request.addValue("application/json", forHTTPHeaderField: "Accept")
@@ -169,12 +169,12 @@ class LightScheduler {
         self.lightId = lightId
     }
 
-    func createScheduleWithCommandBody(_ body: NSDictionary) throws -> Semaphore {
+    func createSchedule(withCommandBody body: NSDictionary) throws -> Semaphore {
         let requester = Requester(config: config)
-        let url = try requester.createApiURLForRelativeURL("schedules")
-        let commandAddress = try requester.createApiPathForRelativeURL("lights/\(lightId)/state")
+        let url = try requester.createApiURL(forRelativeURL: "schedules")
+        let commandAddress = try requester.createApiPath(forRelativeURL: "lights/\(lightId)/state")
         let command = ["address": "\(commandAddress)", "method": "PUT", "body": body] as [String : Any]
-        return try requester.doPostWithURL(url, body: ["name": "Schedule Light", "command": command, "localtime": localTime]) {
+        return try requester.doPost(with: url, body: ["name": "Schedule Light", "command": command, "localtime": localTime]) {
             (data) in
             let array = try! JSONSerialization.jsonObject(with: data, options: []) as! NSArray
             let object = array.firstObject as! NSDictionary
@@ -361,8 +361,8 @@ class CreateUserCommand: Command {
             throw HueError.missingConfiguration(message: "Missing device type")
         }
         let requester = Requester(config: config)
-        let url = try requester.createApiURLWithoutUsernameForRelativeURL("")
-        semaphore = try requester.doPostWithURL(url, body: ["devicetype": "\(deviceType)"]) {
+        let url = try requester.createApiURLWithoutUsername(forRelativeURL: "")
+        semaphore = try requester.doPost(with: url, body: ["devicetype": "\(deviceType)"]) {
             (data) in
             let array = try! JSONSerialization.jsonObject(with: data, options: []) as! NSArray
             let object = array.firstObject as! NSDictionary
@@ -406,8 +406,8 @@ class DeleteUserCommand: Command {
             return
         }
         let requester = Requester(config: config)
-        let url = try requester.createApiURLForRelativeURL("config/whitelist/\(username2!)")
-        semaphore = try requester.doDeleteWithURL(url)
+        let url = try requester.createApiURL(forRelativeURL: "config/whitelist/\(username2!)")
+        semaphore = try requester.doDelete(with: url)
     }
 
     func waitUntilFinished() {
@@ -440,8 +440,8 @@ class GetCommand: Command {
             return
         }
         let requester = Requester(config: config)
-        let url = try requester.createApiURLForRelativeURL(relativeURL)
-        semaphore = try requester.doGetWithURL(url) {
+        let url = try requester.createApiURL(forRelativeURL: relativeURL)
+        semaphore = try requester.doGet(with: url) {
             (data) in
             let object = try! JSONSerialization.jsonObject(with: data, options: []) as! NSDictionary
             print(object)
@@ -525,7 +525,7 @@ class CreateScheduleLightOn: Command {
             return
         }
         let scheduler = LightScheduler(config: config, localTime: localTime!, lightId: lightId!)
-        semaphore = try scheduler.createScheduleWithCommandBody(["on": true, "bri": brightness!])
+        semaphore = try scheduler.createSchedule(withCommandBody: ["on": true, "bri": brightness!])
     }
 
     func waitUntilFinished() {
@@ -561,7 +561,7 @@ class CreateScheduleLightOff: Command {
             return
         }
         let scheduler = LightScheduler(config: config, localTime: localTime!, lightId: lightId!)
-        semaphore = try scheduler.createScheduleWithCommandBody(["on": false])
+        semaphore = try scheduler.createSchedule(withCommandBody: ["on": false])
     }
 
     func waitUntilFinished() {
@@ -595,8 +595,8 @@ class DeleteSchedule: Command {
             return
         }
         let requester = Requester(config: config)
-        let url = try requester.createApiURLForRelativeURL("schedules/\(scheduleId!)")
-        semaphore = try requester.doDeleteWithURL(url)
+        let url = try requester.createApiURL(forRelativeURL: "schedules/\(scheduleId!)")
+        semaphore = try requester.doDelete(with: url)
     }
 
     func waitUntilFinished() {
