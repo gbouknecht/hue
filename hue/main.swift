@@ -3,7 +3,7 @@
 import Foundation
 
 enum HueError: Error {
-    case missingConfiguration(message:String)
+    case missingConfiguration(message: String)
 }
 
 class Semaphore {
@@ -173,7 +173,7 @@ class LightScheduler {
         let requester = Requester(config: config)
         let url = try requester.createApiURL(forRelativeURL: "schedules")
         let commandAddress = try requester.createApiPath(forRelativeURL: "lights/\(lightId)/state")
-        let command = ["address": "\(commandAddress)", "method": "PUT", "body": body] as [String : Any]
+        let command = ["address": "\(commandAddress)", "method": "PUT", "body": body] as [String: Any]
         return try requester.doPost(with: url, body: ["name": "Schedule Light", "command": command, "localtime": localTime]) {
             (data) in
             let array = try! JSONSerialization.jsonObject(with: data, options: []) as! NSArray
@@ -193,8 +193,8 @@ class ArgumentsParser {
     func parse1(_ arguments: [String]) -> (String)? {
         var args = ArraySlice(arguments)
         guard
-        let _ = args.popFirst(),
-        let arg0 = args.popFirst() else {
+                let _ = args.popFirst(),
+                let arg0 = args.popFirst() else {
             return nil
         }
         return args.isEmpty ? (arg0) : nil
@@ -203,9 +203,9 @@ class ArgumentsParser {
     func parse2(_ arguments: [String]) -> (String, String)? {
         var args = ArraySlice(arguments)
         guard
-        let _ = args.popFirst(),
-        let arg0 = args.popFirst(),
-        let arg1 = args.popFirst() else {
+                let _ = args.popFirst(),
+                let arg0 = args.popFirst(),
+                let arg1 = args.popFirst() else {
             return nil
         }
         return args.isEmpty ? (arg0, arg1) : nil
@@ -214,10 +214,10 @@ class ArgumentsParser {
     func parse3(_ arguments: [String]) -> (String, String, String)? {
         var args = ArraySlice(arguments)
         guard
-        let _ = args.popFirst(),
-        let arg0 = args.popFirst(),
-        let arg1 = args.popFirst(),
-        let arg2 = args.popFirst() else {
+                let _ = args.popFirst(),
+                let arg0 = args.popFirst(),
+                let arg1 = args.popFirst(),
+                let arg2 = args.popFirst() else {
             return nil
         }
         return args.isEmpty ? (arg0, arg1, arg2) : nil
@@ -226,11 +226,11 @@ class ArgumentsParser {
     func parse4(_ arguments: [String]) -> (String, String, String, String)? {
         var args = ArraySlice(arguments)
         guard
-        let _ = args.popFirst(),
-        let arg0 = args.popFirst(),
-        let arg1 = args.popFirst(),
-        let arg2 = args.popFirst(),
-        let arg3 = args.popFirst() else {
+                let _ = args.popFirst(),
+                let arg0 = args.popFirst(),
+                let arg1 = args.popFirst(),
+                let arg2 = args.popFirst(),
+                let arg3 = args.popFirst() else {
             return nil
         }
         return args.isEmpty ? (arg0, arg1, arg2, arg3) : nil
@@ -255,7 +255,7 @@ class GetConfigCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName) = ArgumentsParser().parse1(arguments) , commandName == GetConfigCommand.commandName else {
+        guard let (commandName) = ArgumentsParser().parse1(arguments), commandName == GetConfigCommand.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -284,7 +284,7 @@ class SetBridgeIpAddressCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName, ipAddress) = ArgumentsParser().parse2(arguments) , commandName == SetBridgeIpAddressCommand.commandName else {
+        guard let (commandName, ipAddress) = ArgumentsParser().parse2(arguments), commandName == SetBridgeIpAddressCommand.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -315,7 +315,7 @@ class SetDeviceTypeCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName, deviceType) = ArgumentsParser().parse2(arguments) , commandName == SetDeviceTypeCommand.commandName else {
+        guard let (commandName, deviceType) = ArgumentsParser().parse2(arguments), commandName == SetDeviceTypeCommand.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -346,7 +346,7 @@ class CreateUserCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName) = ArgumentsParser().parse1(arguments) , commandName == CreateUserCommand.commandName else {
+        guard let (commandName) = ArgumentsParser().parse1(arguments), commandName == CreateUserCommand.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -393,7 +393,7 @@ class DeleteUserCommand: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName, username2) = ArgumentsParser().parse2(arguments) , commandName == DeleteUserCommand.commandName else {
+        guard let (commandName, username2) = ArgumentsParser().parse2(arguments), commandName == DeleteUserCommand.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -510,7 +510,7 @@ class CreateScheduleLightOn: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName, localTime, lightId, brightness) = ArgumentsParser().parse4(arguments) , commandName == CreateScheduleLightOn.commandName else {
+        guard let (commandName, localTime, lightId, brightness) = ArgumentsParser().parse4(arguments), commandName == CreateScheduleLightOn.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -547,7 +547,7 @@ class CreateScheduleLightOff: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName, localTime, lightId) = ArgumentsParser().parse3(arguments) , commandName == CreateScheduleLightOff.commandName else {
+        guard let (commandName, localTime, lightId) = ArgumentsParser().parse3(arguments), commandName == CreateScheduleLightOff.commandName else {
             self.argumentsMatch = false
             return
         }
@@ -582,7 +582,7 @@ class DeleteSchedule: Command {
 
     init(config: Configuration, arguments: [String]) {
         self.config = config
-        guard let (commandName, scheduleId) = ArgumentsParser().parse2(arguments) , commandName == DeleteSchedule.commandName else {
+        guard let (commandName, scheduleId) = ArgumentsParser().parse2(arguments), commandName == DeleteSchedule.commandName else {
             self.argumentsMatch = false
             return
         }
