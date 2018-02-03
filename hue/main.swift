@@ -625,7 +625,7 @@ let commands: [Command] = [
 ]
 
 guard let command = commands.filter({ $0.argumentsMatch }).first else {
-    let scriptName = String(args[0].characters.split(separator: "/").last!)
+    let scriptName = String(args[0].split(separator: "/").last!)
     print("usage: \(scriptName) <command> [<args>]")
     print()
     print("Available commands:")
